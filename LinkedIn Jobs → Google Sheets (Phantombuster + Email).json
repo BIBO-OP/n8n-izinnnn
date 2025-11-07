@@ -1,0 +1,529 @@
+{
+  "name": "LinkedIn Jobs → Google Sheets (Phantombuster + Email)",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const limit = $vars.JOB_LIMIT || 50;\nconst keywords = $vars.KEYWORDS || 'developer';\nconst location = $vars.TARGET_COUNTRY === 'AE' ? 'UAE' : '';\n\nreturn [{\n  json: { limit, keywords, location }\n}];"
+      },
+      "id": "00a5db14-0c0a-456c-9592-45e4fd67d413",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1264,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "agentId": "4801794168603321",
+        "jsonParameters": "={{ true }}",
+        "additionalFields": {
+          "argumentsUi": {
+            "argumentValues": [
+              {
+                "key": "=={{ {\n  \"sessionCookie\": \"AQEDAV_hudEFizqQAAABmju1sN8AAAGaX8I031YAJaxG3NLnJJzSaD_dUrxw2uF954w31z2bh5rSO-KhWmpAzT50XZ456nCxttOIaU0e2aiwh3YBpxeMJXHb8N3_vELruxMPOPTN9eU8HWhoEz7x_JYR\",\n  \"userAgent\": \"4801794168603321\",  // optional\n  \"keywords\": $node[\"Set Config\"].json.keywords,\n  \"location\": $node[\"Set Config\"].json.location,\n  \"limit\": $node[\"Set Config\"].json.limit\n} }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7f94be9f-0570-451a-93e4-a859a83ae015",
+      "name": "Launch Phantombuster Phantom",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        832
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "XrnbnSPybs8uO8FQ",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 300,
+        "unit": "seconds"
+      },
+      "id": "5340fd38-afc8-4fc6-aea8-13045d548ba6",
+      "name": "Wait for Scrape",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        832
+      ],
+      "webhookId": "ac9b623f-b533-49de-8180-cc129d40a734"
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "4801794168603321",
+        "additionalFields": {}
+      },
+      "id": "e3743129-d525-443e-9b3d-97eeaa70902d",
+      "name": "Get Phantom Results",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})/gi;\n\nfunction extractEmail(text) {\n  if (!text) return 'N/A';\n  const matches = text.toString().match(emailRegex);\n  return matches ? matches[0] : 'N/A';\n}\n\n// Ambil data dari PhantomBuster output\nlet profiles = [];\n\nif (Array.isArray(items) && items.length > 1) {\n  profiles = items.map(i => i.json);\n} else if (items.length === 1) {\n  const payload = items[0].json;\n  const candidates = [\n    payload,\n    payload.output,\n    payload.resultObject,\n    payload.result,\n    payload.data\n  ];\n\n  for (const c of candidates) {\n    if (Array.isArray(c)) { profiles = c; break; }\n    if (c && typeof c === 'object') {\n      if (Array.isArray(c.data)) { profiles = c.data; break; }\n      if (Array.isArray(c.result)) { profiles = c.result; break; }\n      if (Array.isArray(c.resultObject)) { profiles = c.resultObject; break; }\n    }\n  }\n\n  if (profiles.length === 0 && payload && typeof payload === 'object') {\n    profiles = [payload];\n  }\n}\n\nif (!profiles || profiles.length === 0) {\n  return [{ json: { error: 'No LinkedIn profile data found in PhantomBuster output.' } }];\n}\n\nreturn profiles.map(profile => {\n  const contactText = (profile.additionalInfo || profile.description || '').toString();\n  const email = extractEmail(contactText);\n  const key = `${profile.profileUrl || ''}|${profile.fullName || ''}|${profile.company || ''}`;\n  const unique_id = crypto.createHash('sha256').update(key).digest('hex');\n\n  return {\n    json: {\n      // === URUTAN SESUAI HEADER + tambahan email/meta ===\n      profileUrl: profile.profileUrl || 'N/A',\n      fullName: profile.fullName || 'N/A',\n      firstName: profile.firstName || 'N/A',\n      lastName: profile.lastName || 'N/A',\n      headline: profile.headline || 'N/A',\n      additionalInfo: profile.additionalInfo || 'N/A',\n      location: profile.location || 'N/A',\n      connectionDegree: profile.connectionDegree || 'N/A',\n      profileImageUrl: profile.profileImageUrl || 'N/A',\n      vmid: profile.vmid || 'N/A',\n      query: profile.query || 'N/A',\n      category: profile.category || 'N/A',\n      timestamp: profile.timestamp || 'N/A',\n      sharedConnections: profile.sharedConnections || 'N/A',\n      company: profile.company || 'N/A',\n      companyUrl: profile.companyUrl || 'N/A',\n      companySlug: profile.companySlug || 'N/A',\n      companyId: profile.companyId || 'N/A',\n      industry: profile.industry || 'N/A',\n      company2: profile.company2 || 'N/A',\n      companyUrl2: profile.companyUrl2 || 'N/A',\n      jobTitle: profile.jobTitle || 'N/A',\n      jobDateRange: profile.jobDateRange || 'N/A',\n      jobTitle2: profile.jobTitle2 || 'N/A',\n      jobDateRange2: profile.jobDateRange2 || 'N/A',\n      school: profile.school || 'N/A',\n      schoolDegree: profile.schoolDegree || 'N/A',\n      schoolDateRange: profile.schoolDateRange || 'N/A',\n      school2: profile.school2 || 'N/A',\n      schoolDegree2: profile.schoolDegree2 || 'N/A',\n      schoolDateRange2: profile.schoolDateRange2 || 'N/A',\n      searchAccountFullName: profile.searchAccountFullName || 'N/A',\n      searchAccountProfileId: profile.searchAccountProfileId || 'N/A',\n\n      // tambahan email / meta biar sheet lengkap\n      contactInfo: profile.contactInfo || contactText || 'N/A',\n      email: email,\n      metaTitle: `LinkedIn Profile: ${profile.fullName || 'Unknown'} (${profile.headline || 'N/A'})`,\n      metaDescription: `${(profile.headline || '').substring(0, 157)}...`,\n      unique_id: unique_id,\n      scrapedDate: new Date().toISOString()\n    }\n  };\n});\n"
+      },
+      "id": "dd3ac5ac-1c80-4385-ab4a-1b26d1506e41",
+      "name": "Parse CSV, Email & Hash ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1M5x3A3pnHMvfHE_ppnO_hl4888A9c5S5RogVCGcOsOM",
+          "mode": "list",
+          "cachedResultName": "Linkedin1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M5x3A3pnHMvfHE_ppnO_hl4888A9c5S5RogVCGcOsOM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1687734993,
+          "mode": "list",
+          "cachedResultName": "Scrapping (1)",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M5x3A3pnHMvfHE_ppnO_hl4888A9c5S5RogVCGcOsOM/edit#gid=1687734993"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "profileUrl",
+              "displayName": "profileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fullName",
+              "displayName": "fullName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "firstName",
+              "displayName": "firstName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "lastName",
+              "displayName": "lastName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "additionalInfo",
+              "displayName": "additionalInfo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "connectionDegree",
+              "displayName": "connectionDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "profileImageUrl",
+              "displayName": "profileImageUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vmid",
+              "displayName": "vmid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sharedConnections",
+              "displayName": "sharedConnections",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "companyUrl",
+              "displayName": "companyUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "companySlug",
+              "displayName": "companySlug",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "companyId",
+              "displayName": "companyId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company2",
+              "displayName": "company2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "companyUrl2",
+              "displayName": "companyUrl2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "jobTitle",
+              "displayName": "jobTitle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "jobDateRange",
+              "displayName": "jobDateRange",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "jobTitle2",
+              "displayName": "jobTitle2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "jobDateRange2",
+              "displayName": "jobDateRange2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "school",
+              "displayName": "school",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "schoolDegree",
+              "displayName": "schoolDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "schoolDateRange",
+              "displayName": "schoolDateRange",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "school2",
+              "displayName": "school2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "schoolDegree2",
+              "displayName": "schoolDegree2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "schoolDateRange2",
+              "displayName": "schoolDateRange2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "searchAccountFullName",
+              "displayName": "searchAccountFullName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "searchAccountProfileId",
+              "displayName": "searchAccountProfileId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "5b7cd12b-8ae7-4f6c-802c-cae89ebb5d9c",
+      "name": "Search Duplicate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -16,
+        816
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1440,
+        832
+      ],
+      "id": "481e4c3a-ce64-4b94-8e98-e59fc5e95da2",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "content": "\n    tutorial: `📘 **LinkedIn Jobs → Google Sheets Automation Guide**\n\n### ⚙️ STEP 1 — Setup API Phantombuster\n1. Buka [https://phantombuster.com](https://phantombuster.com) → Login.\n2. Klik profil kanan atas → *API Key* → Copy API key.\n3. Di n8n, buka menu ⚙️ → *Credentials* → Add new credential → pilih **Phantombuster API**.\n4. Masukkan API Key dari langkah 2 → Save.\n5. Tes koneksi. Kalau ✅ berarti berhasil.\n\n### 🔗 STEP 2 — Hubungkan Google Sheets\n1. Pastikan sheet target sudah punya header (nama kolom).\n2. Di Credentials → Add new credential → pilih **Google Sheets OAuth2**.\n3. Login akun Google → pilih *Allow*.\n\n### 🧠 STEP 3 — Konfigurasi Workflow\nNode utama:\n- **Set Config** → Nentuin keyword dan limit job (misal 'developer', 50 job max).\n- **Phantombuster Launch** → Jalankan Phantom LinkedIn.\n- **Wait for Scrape** → Tunggu proses selesai (default: 5 menit).\n- **Get Phantom Results** → Ambil hasil scrape dari Phantombuster.\n- **Parse CSV, Email & Hash ID** → Ubah data mentah jadi format rapi, lengkap sama email & hash unik.\n- **Search Duplicate / Append New Job** → Simpan hasil baru ke Google Sheets tanpa duplikasi.\n\n### 🚀 STEP 4 — Jalankan\n- Klik **Execute Workflow** di atas kiri.\n- Tunggu sekitar 5 menit.\n- Lihat hasil di Google Sheet (tab *Scrapping (1)*).\n\n### 💡 Tips\n- Bisa ubah delay di node *Wait for Scrape* kalau Phantom-nya cepat.\n- Kalau mau pakai form input otomatis, aktifkan node *On Form Submission* dan deploy webhook.\n- Untuk testing manual, node *Manual Trigger* bisa langsung jalanin semua flow.\n\n\n",
+        "height": 1024,
+        "width": 832
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2176,
+        304
+      ],
+      "id": "99c84485-c432-4800-86c6-5b6740dd7fb6",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "Launch Phantombuster Phantom",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Phantombuster Phantom": {
+      "main": [
+        [
+          {
+            "node": "Wait for Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Scrape": {
+      "main": [
+        [
+          {
+            "node": "Get Phantom Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Phantom Results": {
+      "main": [
+        [
+          {
+            "node": "Parse CSV, Email & Hash ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CSV, Email & Hash ID": {
+      "main": [
+        [
+          {
+            "node": "Search Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "82b3ad11-5445-47d1-9fd4-6c4544459657",
+  "meta": {
+    "instanceId": "af071afa40e73fe8df37430f8e3121fcf5015f162d7b2a980a109c1f5913dd2a"
+  },
+  "id": "uFPjnYJ3QMbTO8Cm",
+  "tags": []
+}

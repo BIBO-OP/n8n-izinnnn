@@ -1,0 +1,832 @@
+{
+  "name": "Video Gen With References",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -3296,
+        -288
+      ],
+      "id": "9c9bd425-73f5-4db2-946b-923db951f84f",
+      "name": "Telegram Trigger",
+      "webhookId": "6a1dd545-f348-4137-b130-7a73f2f13e55",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Telegram Trigger').item.json.message.text }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    },
+                    "id": "d10f18bd-122f-4760-a783-39c0dfb73a0b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c9829504-5f56-44f4-9989-2b009c5a97e8",
+                    "leftValue": "={{ $('Telegram Trigger').item.json.message.voice }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "object",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -2848,
+        -288
+      ],
+      "id": "36614bfd-38fb-4225-b191-aeb26897a232",
+      "name": "Switch",
+      "executeOnce": false,
+      "retryOnFail": false,
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-1.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-1.5-flash"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2400,
+        -208
+      ],
+      "id": "d4427023-6779-4013-bf22-274c059492b4",
+      "name": "Transcribe a recording"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $('Telegram Trigger').item.json.message.voice.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2624,
+        -208
+      ],
+      "id": "e290dbc3-f89c-463a-a5ca-150557a907be",
+      "name": "Get a file",
+      "webhookId": "80e00a5f-e419-4db4-a5c0-2f7e8cf5e174"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Coba pastiin lagi lu ngirim text atau audio!",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2208,
+        -384
+      ],
+      "id": "7ab1d615-c29b-4456-a04e-ddc328042258",
+      "name": "Send a text message",
+      "webhookId": "bb61c873-1ac7-40d9-901b-2539914b35f2"
+    },
+    {
+      "parameters": {
+        "operation": "sendChatAction",
+        "chatId": "={{ $json.message.chat.id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3072,
+        -288
+      ],
+      "id": "77600fae-c961-433f-890a-c7bee9a7645a",
+      "name": "Action Type",
+      "webhookId": "5a9b0463-738f-48db-97c2-c1297f211139"
+    },
+    {
+      "parameters": {
+        "jsCode": "function get(obj, path, dflt = undefined) {\n  return path\n    .replace(/\\[(\\d+)\\]/g, '.$1')\n    .split('.')\n    .reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : dflt), obj);\n}\n\n// 1. Ambil dari input node ini\nlet fromInput = null;\ntry {\n  fromInput = get($input.first()?.json || {}, 'content.parts.0.text', null);\n} catch (e) {\n  fromInput = null;\n}\n\n// 2. Kalau kosong, fallback dari node Telegram Trigger\nlet fromTelegram = null;\ntry {\n  fromTelegram = get($('Telegram Trigger').first()?.json || {}, 'message.text', null);\n} catch (e) {\n  fromTelegram = null;\n}\n\n// Tentukan final text\nconst finalText = fromInput ?? fromTelegram ?? '';\n\nreturn [\n  {\n    json: {\n      fromInput,\n      fromTelegram,\n      finalText\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2176,
+        -208
+      ],
+      "id": "b5fa1104-7340-4528-9d1d-76a0c807fabb",
+      "name": "Code",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "61cb1650-facf-4eae-aa38-9f2cbfc0b909",
+              "leftValue": "={{ $('Telegram Trigger').item.json.message.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2512,
+        -368
+      ],
+      "id": "67905480-baa5-4ae6-919d-b67f2bd55968",
+      "name": "If Text Kosong"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1984,
+        -176
+      ],
+      "id": "5c1ae580-4e4a-4bd1-ab60-126880c86a83",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "content": "## 📌 ReadMe – Setup Workflow N8N\n\n1. **Masukkan Credentials**\n   Tambahkan credentials untuk **Telegram** di N8N.\n\n2. **Buat Akun Google Cloud**\n\n   * Daftar di [Google Cloud Console](https://cloud.google.com/free).\n   * Aktifkan **billing** untuk mendapatkan **credit gratis \\$300** selama 90 hari.\n   * Pastikan project berada di **minimal Tier 1** (agar bisa menggunakan Vertex AI).\n\n3. **Aktifkan Vertex AI API dan YouTube API**\n   * Masuk ke [Vertex AI API Console](https://console.cloud.google.com/vertex-ai/studio/media) dan aktifkan layanan **Vertex AI**.\n   * Masuk ke [YouTube Data API v3](https://console.cloud.google.com/marketplace/product/google/youtube.googleapis.com) dan aktifkan YouTube API\n\n4. **Buat Gemini API Key**\n\n   * Buka [Google AI Studio](https://aistudio.google.com/app/apikey).\n   * Generate **API Key** dan simpan di N8N.\n\n5. **Masukkan Credentials Transcribe, Gemini, Veo 3, Get Video, Drive, dan YouTube ke N8N**\n   Tahapannya sama kayak [Video Ini](https://youtu.be/D-W7Py1IbXI?si=lKsFthBwMKGXjCnP)\n\n---\n\n### 🔗 Referensi\n* [Setup Feature Store – Google Cloud Vertex AI](https://cloud.google.com/vertex-ai/docs/featurestore/setup)\n",
+        "height": 640,
+        "width": 592
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4032,
+        -480
+      ],
+      "id": "f2b90869-a33c-45d3-8f05-bcef7ccbf40a",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('Utils').item.json.title }}",
+        "regionCode": "ID",
+        "categoryId": "1",
+        "options": {
+          "description": "={{ $('Utils').item.json.prompt }}"
+        }
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        -1520,
+        208
+      ],
+      "id": "80d9fe2b-d132-4b5c-bd1a-b8ca20e0d187",
+      "name": "Upload a video"
+    },
+    {
+      "parameters": {
+        "operation": "sendVideo",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "binaryData": true,
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1520,
+        16
+      ],
+      "id": "db10bb91-8e8a-485a-bef6-49dd56930133",
+      "name": "Send a video",
+      "webhookId": "3a454b0a-cfb9-42ec-bf31-4b8dc57072da"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": true,
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "9c325447-7ebd-4eda-8c3f-0cd820625302"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "34c345b4-e1a9-4c68-9a06-af843d64c696",
+                    "leftValue": true,
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1744,
+        112
+      ],
+      "id": "f9249645-6321-4a28-bf4f-6332691582b2",
+      "name": "Upload"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json['LINK-GDrive-REFERENSI'] }}",
+          "mode": "url"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -3312,
+        112
+      ],
+      "id": "e10aad7b-e221-474f-bfc7-612e9e95e8ff",
+      "name": "Download file"
+    },
+    {
+      "parameters": {
+        "operation": "binaryToPropery",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -3088,
+        112
+      ],
+      "id": "f769c949-798b-4689-9e10-cc464e30e3e8",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://us-central1-aiplatform.googleapis.com/v1/projects/{{ $('Utils').item.json['YOUR-PROJECT-ID'] }}/locations/us-central1/publishers/google/models/veo-3.0-fast-generate-preview:fetchPredictOperation",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"operationName\": \"{{ $('Veo3').item.json.name }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2416,
+        112
+      ],
+      "id": "750ac70b-0380-473a-9edc-6d512773bbbc",
+      "name": "Get Video"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "79c22793-6816-4c18-a19f-26f2adc566ec",
+              "leftValue": "={{ $json.response.videos[0].bytesBase64Encoded }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2192,
+        112
+      ],
+      "id": "0f255452-4e47-4f5b-9c1d-f2a3653b2643",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2640,
+        112
+      ],
+      "id": "37502830-e4a8-4016-b706-5bcffbcfbbd3",
+      "name": "Wait 20 Sec",
+      "webhookId": "c26e0d0d-3039-4da5-9c76-b9249d40d673"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://us-central1-aiplatform.googleapis.com/v1/projects/{{ $('Utils').item.json['YOUR-PROJECT-ID'] }}/locations/us-central1/publishers/google/models/veo-3.0-fast-generate-preview:predictLongRunning",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"instances\": [\n    {\n      \"image\": {\n        \"bytesBase64Encoded\": \"{{ $json.data }}\",\n        \"mimeType\": \"image/png\"\n      },          \n      \"prompt\": \"{{ $('Utils').item.json.prompt }}\" \n    }\n  ],\n  \"parameters\": {\n    \"aspectRatio\": \"16:9\",\n    \"durationSeconds\": 8,\n    \"personGeneration\": \"allow_adult\",\n    \"generateAudio\": true,\n    \"resolution\": \"720p\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2864,
+        112
+      ],
+      "id": "52e26925-5483-49de-bb34-3adaeb8aac8e",
+      "name": "Veo3"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.finalText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=### System Prompt untuk AI Agent (Generator Prompt Video Veo 3 - Versi Kutip Tunggal)\n\nAnda adalah AI asisten kreatif yang berspesialisasi dalam membuat prompt video untuk model **Google Veo 3** menggunakan fungsionalitas **image-to-video**.\n\nMisi Anda adalah mengubah foto pengguna menjadi karakter utama dalam sebuah video sinematik pendek dan menghasilkan output dalam format JSON yang ketat dan sederhana.\n\n**Aturan Utama:**\n\n1.  **Input Utama**: Gunakan foto pengguna yang diberikan sebagai referensi konsisten untuk wajah dan identitas karakter utama.\n2.  **Output Wajib**: Respons Anda HARUS berupa satu objek JSON tunggal. Jangan sertakan teks atau penjelasan lain di luar JSON.\n3.  **Struktur JSON**: Gunakan struktur dua kunci berikut ini:\n    ```json\n    {\n      \"Judul (Indonesia)\": \"string\",\n      \"Prompt (Indonesia)\": \"string\"\n    }\n    ```\n\n**Panduan untuk Setiap Kolom JSON:**\n\n1.  **`Judul (Indonesia)`**:\n\n      * **Bahasa**: Indonesia.\n      * **Gaya**: Buat judul yang singkat, menarik, dan berpotensi viral untuk media sosial.\n\n2.  **`Prompt (Indonesia)`**:\n\n      * **Bahasa**: Indonesia.\n      * **Konten**: Tulis deskripsi sinematik yang ringkas (2-4 kalimat). Jelaskan adegan, pencahayaan, pergerakan kamera, dan aksi utama karakter. Prompt ini juga berfungsi sebagai deskripsi video.\n      * **Dialog**: Dialog karakter ditulis langsung dalam Bahasa Indonesia menggunakan **tanda kutip tunggal** (`'`).\n      * **Instruksi Wajib**: Jika ada dialog, selalu tambahkan kalimat `Karakter berbicara dalam Bahasa Indonesia.` di akhir prompt.\n\n**Spesifikasi Video (untuk dipertimbangkan saat membuat prompt):**\n\n  * **Durasi**: 8 detik.\n  * **Aspect Ratio**: 16:9.\n  * **Gaya Visual**: Realistis dan Sinematik (Realistic cinematic).\n\n-----\n\n**Contoh Eksekusi Sempurna:**\n\n*Input Konseptual: \"Seorang pria memperkenalkan dirinya sebagai AI.\"*\n\n**Output JSON yang Diharapkan:**\n\n```json\n{\n  \"Judul\": \"Ketika AI Menyapa Duniamu\",\n  \"Prompt\": \"Video sinematik realistis menampilkan pengguna dari foto yang diberikan, berada di dalam sebuah ruangan minimalis yang terang. Kamera bergerak perlahan dari medium shot menjadi close-up saat ia tersenyum hangat menatap kamera dan berkata: 'Halo, perkenalkan, saya adalah AI.' Karakter berbicara dalam Bahasa Indonesia.\"\n}\n```"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -1952,
+        -368
+      ],
+      "id": "57165b9d-9a16-42c9-a2af-d982205fcb28",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "response.videos[0].bytesBase64Encoded",
+        "binaryPropertyName": "=data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -1968,
+        112
+      ],
+      "id": "6de81be4-6646-4bb8-a2cf-43ec0ebc8c79",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3ade2a4-8005-4135-aa29-532db739db5f",
+              "name": "YOUR-PROJECT-ID",
+              "value": "caramel-gate-469406-r0",
+              "type": "string"
+            },
+            {
+              "id": "58061f53-2fe3-4699-a939-1ab4ad69ae69",
+              "name": "LINK-GDrive-REFERENSI",
+              "value": "https://drive.google.com/file/d/1qUDBdp19dmIbJDYSe8rqEb9_FmAO2SNs/view?usp=sharing",
+              "type": "string"
+            },
+            {
+              "id": "ad36d2ff-06a7-469b-9bb9-619d090a2f41",
+              "name": "title",
+              "value": "={{ $json.output.Judul }}",
+              "type": "string"
+            },
+            {
+              "id": "a639d334-89a0-4a65-8ea9-ab08d6c76540",
+              "name": "prompt",
+              "value": "={{ $json.output.Prompt }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1600,
+        -208
+      ],
+      "id": "173ca1c5-fa31-4af0-8a7d-eddbed1a7fc1",
+      "name": "Utils"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"Judul\": \"string\",\n  \"Prompt\": \"string\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1808,
+        -176
+      ],
+      "id": "2af5f338-eb16-4f4a-bc5a-e159f88df40e",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "content": "## 🛠️ Ganti Value\n\n1. **`YOUR-PROJECT-ID`**\n   Ganti dengan **Project ID Google Cloud** kalian.\n   👉 Cek di sini: [Google Cloud Console](https://console.cloud.google.com/welcome)\n\n2. **`LINK-GDrive-REFERENSI`**\n   Ganti dengan **link gambar PNG** yang akan dipakai sebagai referensi.\n   👉 Upload dulu gambarnya ke Google Drive, lalu ambil link **public/share**.\n",
+        "height": 496,
+        "width": 256,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1680,
+        -544
+      ],
+      "typeVersion": 1,
+      "id": "4e382d7f-0669-4188-bec8-57d49216745e",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n### 🔐 Google OAuth2 API\n\n* Gunakan **Google OAuth2 API** untuk autentikasi.\n* Scope yang dipakai:\n\n  ```\n  https://www.googleapis.com/auth/cloud-platform\n  ```\n* Untuk **Veo3** dan **Get Video**, pastikan menggunakan **Project Tier 1** (aktifkan billing free trial).",
+        "height": 464,
+        "width": 656,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2912,
+        64
+      ],
+      "typeVersion": 1,
+      "id": "66837cdd-90ab-4842-9fb5-37f800731086",
+      "name": "Sticky Note3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Action Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "If Text Kosong",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action Type": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Text Kosong": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload": {
+      "main": [
+        [
+          {
+            "node": "Send a video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upload a video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Veo3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 20 Sec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 20 Sec": {
+      "main": [
+        [
+          {
+            "node": "Get Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Veo3": {
+      "main": [
+        [
+          {
+            "node": "Wait 20 Sec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Utils",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Utils": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "978cdad0-f005-463d-b8ef-19fed90c3af7",
+  "meta": {
+    "instanceId": "af071afa40e73fe8df37430f8e3121fcf5015f162d7b2a980a109c1f5913dd2a"
+  },
+  "id": "qAKRJ9lymZ6yOmBo",
+  "tags": []
+}
